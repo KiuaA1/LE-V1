@@ -52,7 +52,7 @@ configurations {
 android {
     namespace 'net.kdt.pojavlaunch'
 
-    compileSdk = 34
+    compileSdk = 36
 
     lintOptions {
         checkReleaseBuilds false
@@ -84,7 +84,7 @@ android {
     defaultConfig {
         applicationId "com.cslaucher.plus"
         minSdkVersion 21
-        targetSdkVersion 34
+        targetSdkVersion 36
         versionCode 10010000
         versionName getVersionName()
         multiDexEnabled true //important
@@ -149,11 +149,11 @@ android {
         }
     }
 
-    ndkVersion = "27.3.13750724"
+    ndkVersion = "29.0.14206865"
 
     externalNativeBuild {
-        ndkBuild {
-            path file('src/main/jni/Android.mk')
+        cmake {
+            path file('src/main/jni/CMakeLists.txt')
         }
     }
 
@@ -234,7 +234,7 @@ dependencies {
     // Our version of exp4j can be built from source at
     // https://github.com/PojavLauncherTeam/exp4j
     implementation 'net.sourceforge.htmlcleaner:htmlcleaner:2.6.1'
-    implementation 'com.bytedance:bytehook:1.0.9'
+    implementation 'com.bytedance:bytehook:1.1.1'
     // Animated GIF support for profile backgrounds (native decoder, memory-efficient)
     implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.28'
     implementation 'com.caverock:androidsvg-aar:1.4'
