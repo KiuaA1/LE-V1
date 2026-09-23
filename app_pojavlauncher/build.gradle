@@ -6,7 +6,7 @@ plugins {
 static def getDate() { return new Date().format('yyyyMMdd') }
 
 def getVersionName = {
-    // Show clean "CS Launcher Plus v3.1" style version names.
+    // Show clean "LE Launcher v3.1" style version names.
     String semVer = "3.1.0"
     
     // Try to get a git tag for the full version
@@ -114,8 +114,8 @@ android {
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.customDebug
-            resValue "string", "app_name", "CS Launcher Plus"
-            resValue "string", "app_short_name", "CS Launcher Plus"
+            resValue "string", "app_name", "LE Launcher"
+            resValue "string", "app_short_name", "LE Launcher"
             resValue 'string', 'application_package', 'com.cslaucher.plus.debug'
             resValue 'string', 'storageProviderAuthorities', 'com.cslaucher.plus.scoped.gamefolder.debug'
             resValue 'string', 'shareProviderAuthority', 'com.cslaucher.plus.scoped.controlfolder.debug'
@@ -138,8 +138,8 @@ android {
             // defaultConfig already set
             // multiDexEnabled = true
             signingConfig signingConfigs.release
-            resValue "string", "app_name", "CS Launcher Plus"
-            resValue "string", "app_short_name", "CS Launcher Plus"
+            resValue "string", "app_name", "LE Launcher"
+            resValue "string", "app_short_name", "LE Launcher"
             resValue 'string', 'storageProviderAuthorities', 'com.cslaucher.plus.gamefolder'
             resValue 'string', 'application_package', 'com.cslaucher.plus'
         }
