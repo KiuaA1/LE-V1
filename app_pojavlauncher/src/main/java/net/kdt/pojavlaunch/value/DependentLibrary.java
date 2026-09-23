@@ -8,6 +8,8 @@ public class DependentLibrary {
     public ArgRules[] rules;
     public String name;
     public LibraryDownloads downloads;
+    public Extract extract;
+    public java.util.Map<String, String> natives; // OS -> classifier, e.g. "linux" -> "natives-linux"
     public String url;
 
     @Keep
