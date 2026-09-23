@@ -1344,101 +1344,137 @@ public final class Tools {
         return getVersionInfo(versionName, false);
     }
 
+    /**
+     * Resolve a version manifest including recursive inheritsFrom chains.
+     * Loader manifests can inherit from another custom manifest which itself inherits
+     * from vanilla, so resolving only one level leaves missing libraries/arguments.
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static JMinecraftVersionList.Version getVersionInfo(String versionName, boolean skipInheriting) {
         try {
-            JMinecraftVersionList.Version customVer = Tools.GLOBAL_GSON.fromJson(read(DIR_HOME_VERSION + "/" + versionName + "/" + versionName + ".json"), JMinecraftVersionList.Version.class);
-            if (skipInheriting || customVer.inheritsFrom == null || customVer.inheritsFrom.equals(customVer.id)) {
-                preProcessLibraries(customVer.libraries);
-            } else {
-                JMinecraftVersionList.Version inheritsVer;
-                //If it won't download, just search for it
-                try{
-                    inheritsVer = Tools.GLOBAL_GSON.fromJson(read(DIR_HOME_VERSION + "/" + customVer.inheritsFrom + "/" + customVer.inheritsFrom + ".json"), JMinecraftVersionList.Version.class);
-                }catch(IOException e) {
-                    throw new RuntimeException("Can't find the source version for "+ versionName +" (req version="+customVer.inheritsFrom+")");
-                }
-                //inheritsVer.inheritsFrom = inheritsVer.id;
-                insertSafety(inheritsVer, customVer,
-                        "assetIndex", "assets", "id",
-                        "mainClass", "minecraftArguments",
-                        "releaseTime", "time", "type", "inheritsFrom"
-                );
+            java.util.HashSet<String> visiting = new java.util.HashSet<>();
+            return resolveVersionInfo(versionName, skipInheriting, visiting);
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to resolve Minecraft version " + versionName, e);
+        }
+    }
 
-                // Go through the libraries, remove the ones overridden by the custom version
-                List<DependentLibrary> inheritLibraryList = new ArrayList<>(Arrays.asList(inheritsVer.libraries));
-                outer_loop:
-                for(DependentLibrary library : customVer.libraries){
-                    // Clean libraries overridden by the custom version
-                    String libName = library.name.substring(0, library.name.lastIndexOf(":"));
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static JMinecraftVersionList.Version resolveVersionInfo(
+            String versionName, boolean skipInheriting, java.util.Set<String> visiting) throws Exception {
+        if (!visiting.add(versionName)) {
+            throw new IllegalStateException("Circular inheritsFrom chain detected at " + versionName);
+        }
 
-                    for(DependentLibrary inheritLibrary : inheritLibraryList) {
-                        String inheritLibName = inheritLibrary.name.substring(0, inheritLibrary.name.lastIndexOf(":"));
+        File manifestFile = new File(DIR_HOME_VERSION, versionName + "/" + versionName + ".json");
+        if (!manifestFile.isFile()) {
+            throw new IOException("Missing version manifest: " + manifestFile.getAbsolutePath());
+        }
 
-                        if(libName.equals(inheritLibName)){
-                            Log.d(APP_NAME, "Library " + libName + ": Replaced version " +
-                                    libName.substring(libName.lastIndexOf(":") + 1) + " with " +
-                                    inheritLibName.substring(inheritLibName.lastIndexOf(":") + 1));
+        JMinecraftVersionList.Version customVer =
+                Tools.GLOBAL_GSON.fromJson(read(manifestFile), JMinecraftVersionList.Version.class);
 
-                            // Remove the library , superseded by the overriding libs
-                            inheritLibraryList.remove(inheritLibrary);
-                            continue outer_loop;
-                        }
-                    }
-                }
+        if (customVer == null) {
+            throw new IOException("Empty version manifest: " + manifestFile.getAbsolutePath());
+        }
 
-                // Fuse libraries
-                inheritLibraryList.addAll(Arrays.asList(customVer.libraries));
-                inheritsVer.libraries = inheritLibraryList.toArray(new DependentLibrary[0]);
-                preProcessLibraries(inheritsVer.libraries);
-
-
-                // Inheriting Minecraft 1.13+ with append custom args
-                if (inheritsVer.arguments != null && customVer.arguments != null) {
-                    List totalArgList = new ArrayList(Arrays.asList(inheritsVer.arguments.game));
-
-                    int nskip = 0;
-                    for (int i = 0; i < customVer.arguments.game.length; i++) {
-                        if (nskip > 0) {
-                            nskip--;
-                            continue;
-                        }
-
-                        Object perCustomArg = customVer.arguments.game[i];
-                        if (perCustomArg instanceof String) {
-                            String perCustomArgStr = (String) perCustomArg;
-                            // Check if there is a duplicate argument on combine
-                            if (perCustomArgStr.startsWith("--") && totalArgList.contains(perCustomArgStr)) {
-                                perCustomArg = customVer.arguments.game[i + 1];
-                                if (perCustomArg instanceof String) {
-                                    perCustomArgStr = (String) perCustomArg;
-                                    // If the next is argument value, skip it
-                                    if (!perCustomArgStr.startsWith("--")) {
-                                        nskip++;
-                                    }
-                                }
-                            } else {
-                                totalArgList.add(perCustomArgStr);
-                            }
-                        } else if (!totalArgList.contains(perCustomArg)) {
-                            totalArgList.add(perCustomArg);
-                        }
-                    }
-
-                    inheritsVer.arguments.game = totalArgList.toArray(new Object[0]);
-                }
-
-                customVer = inheritsVer;
-            }
-
-            // LabyMod 4 sets version instead of majorVersion
+        if (skipInheriting || customVer.inheritsFrom == null || customVer.inheritsFrom.equals(customVer.id)) {
+            if (customVer.libraries == null) customVer.libraries = new DependentLibrary[0];
+            preProcessLibraries(customVer.libraries);
+            visiting.remove(versionName);
             if (customVer.javaVersion != null && customVer.javaVersion.majorVersion == 0) {
                 customVer.javaVersion.majorVersion = customVer.javaVersion.version;
             }
             return customVer;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
+
+        final String parentId = customVer.inheritsFrom;
+        JMinecraftVersionList.Version inheritsVer;
+        try {
+            inheritsVer = resolveVersionInfo(parentId, false, visiting);
+        } catch (Exception e) {
+            throw new RuntimeException("Can't find/resolve parent version " + parentId
+                    + " for " + versionName, e);
+        }
+
+        if (customVer.libraries == null) customVer.libraries = new DependentLibrary[0];
+        if (inheritsVer.libraries == null) inheritsVer.libraries = new DependentLibrary[0];
+
+        // Preserve child values while filling fields omitted by the inherited manifest.
+        insertSafety(inheritsVer, customVer,
+                "assetIndex", "assets", "id",
+                "mainClass", "minecraftArguments",
+                "releaseTime", "time", "type", "inheritsFrom",
+                "downloads", "logging", "javaVersion", "minimumLauncherVersion",
+                "complianceLevel");
+
+        List<DependentLibrary> inheritLibraryList =
+                new ArrayList<>(Arrays.asList(inheritsVer.libraries));
+
+        outer_loop:
+        for (DependentLibrary library : customVer.libraries) {
+            if (library == null || library.name == null) continue;
+            int lastColon = library.name.lastIndexOf(":");
+            String libName = lastColon > 0 ? library.name.substring(0, lastColon) : library.name;
+
+            for (int j = 0; j < inheritLibraryList.size(); j++) {
+                DependentLibrary inheritLibrary = inheritLibraryList.get(j);
+                if (inheritLibrary == null || inheritLibrary.name == null) continue;
+                int parentColon = inheritLibrary.name.lastIndexOf(":");
+                String inheritLibName = parentColon > 0
+                        ? inheritLibrary.name.substring(0, parentColon)
+                        : inheritLibrary.name;
+                if (libName.equals(inheritLibName)) {
+                    inheritLibraryList.remove(j);
+                    continue outer_loop;
+                }
+            }
+        }
+
+        inheritLibraryList.addAll(Arrays.asList(customVer.libraries));
+        inheritsVer.libraries = inheritLibraryList.toArray(new DependentLibrary[0]);
+        preProcessLibraries(inheritsVer.libraries);
+
+        // Minecraft 1.13+ uses structured argument arrays. Child arguments append to
+        // inherited arguments, while duplicate --key/value pairs are replaced.
+        if (inheritsVer.arguments != null && customVer.arguments != null
+                && inheritsVer.arguments.game != null && customVer.arguments.game != null) {
+            List totalArgList = new ArrayList(Arrays.asList(inheritsVer.arguments.game));
+            int nskip = 0;
+            for (int i = 0; i < customVer.arguments.game.length; i++) {
+                if (nskip > 0) {
+                    nskip--;
+                    continue;
+                }
+                Object perCustomArg = customVer.arguments.game[i];
+                if (perCustomArg instanceof String) {
+                    String arg = (String) perCustomArg;
+                    if (arg.startsWith("--") && totalArgList.contains(arg) && i + 1 < customVer.arguments.game.length) {
+                        Object next = customVer.arguments.game[i + 1];
+                        if (next instanceof String && !((String) next).startsWith("--")) {
+                            nskip++;
+                        }
+                    } else if (!totalArgList.contains(arg)) {
+                        totalArgList.add(arg);
+                    }
+                } else if (!totalArgList.contains(perCustomArg)) {
+                    totalArgList.add(perCustomArg);
+                }
+            }
+            inheritsVer.arguments.game = totalArgList.toArray(new Object[0]);
+        } else if (inheritsVer.arguments == null && customVer.arguments != null) {
+            inheritsVer.arguments = customVer.arguments;
+        }
+
+        if (customVer.javaVersion != null && customVer.javaVersion.majorVersion != 0) {
+            inheritsVer.javaVersion = customVer.javaVersion;
+        }
+
+        visiting.remove(versionName);
+        if (inheritsVer.javaVersion != null && inheritsVer.javaVersion.majorVersion == 0) {
+            inheritsVer.javaVersion.majorVersion = inheritsVer.javaVersion.version;
+        }
+        return inheritsVer;
     }
 
     // Prevent NullPointerException
