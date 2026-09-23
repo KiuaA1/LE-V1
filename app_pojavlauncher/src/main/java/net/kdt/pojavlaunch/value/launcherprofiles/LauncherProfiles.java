@@ -268,6 +268,7 @@ public class LauncherProfiles {
                             profile.type = "custom";
                         }
 
+                        profile.gameDir = InstanceManager.allocateGameDir(profile.name, UUID.randomUUID().toString());
                         mainProfileJson.profiles.put(UUID.randomUUID().toString(), profile);
                         changed = true;
                     }
@@ -383,6 +384,15 @@ public class LauncherProfiles {
      * @param minecraftProfile the profile to insert
      */
     public static void insertMinecraftProfile(MinecraftProfile minecraftProfile) {
+        if (minecraftProfile == null) {
+            throw new IllegalArgumentException("minecraftProfile == null");
+        }
+        // New profiles are true instances: each gets an isolated game directory unless
+        // the caller explicitly supplied one (for imported modpacks/custom paths).
+        if (minecraftProfile.gameDir == null || minecraftProfile.gameDir.trim().isEmpty()) {
+            minecraftProfile.gameDir = InstanceManager.allocateGameDir(
+                    minecraftProfile.name, getFreeProfileKey());
+        }
         mainProfileJson.profiles.put(getFreeProfileKey(), minecraftProfile);
         ProfileOrderManager.ensure(mainProfileJson);
     }
@@ -420,7 +430,8 @@ public class LauncherProfiles {
         // Swap the new keys
         for(String profileKey : keys){
             MinecraftProfile currentProfile = launcherProfiles.profiles.get(profileKey);
-            insertMinecraftProfile(currentProfile);
+            String newKey = getFreeProfileKey();
+            launcherProfiles.profiles.put(newKey, currentProfile);
             launcherProfiles.profiles.remove(profileKey);
             hasNormalized = true;
         }
