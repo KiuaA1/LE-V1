@@ -389,11 +389,12 @@ public class LauncherProfiles {
         }
         // New profiles are true instances: each gets an isolated game directory unless
         // the caller explicitly supplied one (for imported modpacks/custom paths).
+        String profileKey = getFreeProfileKey();
         if (minecraftProfile.gameDir == null || minecraftProfile.gameDir.trim().isEmpty()) {
             minecraftProfile.gameDir = InstanceManager.allocateGameDir(
-                    minecraftProfile.name, getFreeProfileKey());
+                    minecraftProfile.name, profileKey);
         }
-        mainProfileJson.profiles.put(getFreeProfileKey(), minecraftProfile);
+        mainProfileJson.profiles.put(profileKey, minecraftProfile);
         ProfileOrderManager.ensure(mainProfileJson);
     }
 
