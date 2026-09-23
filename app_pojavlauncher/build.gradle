@@ -89,13 +89,6 @@ android {
         versionName getVersionName()
         multiDexEnabled true //important
         resValue 'string', 'curseforge_api_key', getCFApiKey()
-        externalNativeBuild {
-            ndkBuild {
-                // Fix for Windows command line length limit
-                arguments "APP_SHORT_COMMANDS=true"
-            }
-        }
-
         // ── APK slimming ────────────────────────────────────────────────
         // x86 / x86_64 only exist for emulators and a handful of Chromebooks, yet they cost
         // ~60 MB of the release APK (native libs + LWJGL natives + the x86 JRE tarballs).
@@ -183,7 +176,7 @@ android {
         buildConfig true
     }
 
-    buildToolsVersion = '34.0.0'
+    buildToolsVersion = '35.0.0'
 }
 
 afterEvaluate {
