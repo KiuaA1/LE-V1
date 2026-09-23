@@ -534,6 +534,25 @@ public class JREUtils {
         // We don't have jemalloc for our LWJGL so set the allocator to system to avoid error logs
         userArgs.add("-Dorg.lwjgl.system.allocator=system");
 
+        // Minecraft 26.x uses LWJGL 3.4.x with the SDL3 backend. Always point LWJGL
+        // at the SDL3 library shipped by the launcher instead of letting it search the
+        // game/native JARs for a desktop Linux SDL build.
+        File bundledSdl3 = new File(NATIVE_LIB_DIR, "libSDL3.so");
+        userArgs.add("-Dorg.lwjgl.sdl.libname=" + bundledSdl3.getAbsolutePath());
+        userArgs.add("-Dorg.lwjgl.system.allocator=system");
+        Logger.appendToLog("LWJGL SDL3 library: " + bundledSdl3.getAbsolutePath()
+                + " exists=" + bundledSdl3.exists());
+
+        // LWJGL 3.4.x on JDK 25 may select the JDK-internal Unsafe memory backend.
+        // Export the API explicitly so Java 25 runtimes behave consistently with
+        // Mojo/Pojav's modern LWJGL setup. These flags are only relevant to Java 25+.
+        if (runtime.javaVersion >= 25) {
+            purgeArg(userArgs, "--add-exports=java.base/jdk.internal.misc");
+            purgeArg(userArgs, "--add-modules=jdk.unsupported");
+            userArgs.add("--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED");
+            userArgs.add("--add-modules=jdk.unsupported");
+        }
+
         // Some phones are not using the right number of cores, fix that. Capped at the core count the
         // device profile measured: the JVM otherwise spins GC and JIT workers for CPUs it is never
         // scheduled onto on a big.LITTLE phone.
