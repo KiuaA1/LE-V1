@@ -1,0 +1,32 @@
+name: Android build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build dependencies
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager             "platform-tools"             "platforms;android-36"             "build-tools;35.0.0"             "ndk;29.0.14206865"             "cmake;3.22.1"
+
+      - name: Build LE Launcher
+        run: ./gradlew :app_pojavlauncher:assembleDebug --no-daemon --stacktrace
