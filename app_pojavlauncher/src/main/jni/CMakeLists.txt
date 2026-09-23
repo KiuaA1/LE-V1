@@ -108,8 +108,12 @@ add_library(exithook SHARED
 target_include_directories(exithook PRIVATE "${LE_JNI}")
 target_link_libraries(exithook PRIVATE bytehook::bytehook pojavexec log dl)
 
-add_library(linkerhook SHARED driver_helper/hook.c)
-target_link_options(linkerhook PRIVATE "-Wl,-z,global")
+# mojoexec provides linkerhook on arm64. Keep LE's legacy linkerhook output for 32-bit.
+if(NOT ANDROID_ABI STREQUAL "arm64-v8a")
+    add_library(le_linkerhook SHARED driver_helper/hook.c)
+    set_target_properties(le_linkerhook PROPERTIES OUTPUT_NAME "linkerhook")
+    target_link_options(le_linkerhook PRIVATE "-Wl,-z,global")
+endif()
 
 add_library(pojavexec_awt SHARED awt_bridge.c)
 target_include_directories(pojavexec_awt PRIVATE "${LE_JNI}")
@@ -122,6 +126,6 @@ add_library(awt_xawt SHARED awt_xawt/xawt_fake.c)
 target_link_libraries(awt_xawt PRIVATE awt_headless)
 
 # Match the legacy ndk-build ABI behavior.
-foreach(target pojavexec exithook linkerhook pojavexec_awt awt_headless awt_xawt)
+foreach(target pojavexec exithook pojavexec_awt awt_headless awt_xawt)
     target_compile_options(${target} PRIVATE -Wno-nullability-completeness)
 endforeach()
