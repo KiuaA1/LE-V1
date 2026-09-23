@@ -510,7 +510,16 @@ public final class Tools {
 
         // Some modloaders (babric) don't fully respect java.libary.path and only use the native lib dir
         // This arg makes them use it. LWJGL prioritizes this path during native loading as well.
-        javaArgList.add("-Dorg.lwjgl.librarypath="+lwjglNativesDir);
+        String lwjglLibraryPath = lwjglNativesDir;
+        // Modern 26.x versions ship their own LWJGL natives. Prefer the per-version
+        // extraction directory when it contains liblwjgl.so, while retaining the
+        // launcher-native directory as a fallback for older versions.
+        File modernNatives = new File(versionSpecificNativesDir, "liblwjgl.so");
+        if (iLwjglVersion >= 342 && modernNatives.isFile()) {
+            lwjglLibraryPath = versionSpecificNativesDir.getAbsolutePath() + ":" + lwjglNativesDir;
+            Log.i("LWJGL", "Using per-version LWJGL natives: " + versionSpecificNativesDir);
+        }
+        javaArgList.add("-Dorg.lwjgl.librarypath="+lwjglLibraryPath);
 
         // Forge 1.6.4 crash mitigation
         // https://github.com/MinecraftForge/FML/blob/f1b3381e61fac1a0ae90f521223c6bc613eb4888/common/cpw/mods/fml/common/asm/FMLSanityChecker.java#L192-L208
@@ -974,37 +983,43 @@ public final class Tools {
         // Match the CS Launcher packaged bridge selection: 3.4.1 is the newest
         // bundled component and serves current modern snapshots.
         String internalLwjglVersion = iLwjglVersion >= 341 ? "3.4.1" : "3.3.3";
+        // LE historically injected a bundled LWJGL 3.4.1 before the version's own
+        // libraries. That is correct for older snapshots, but it overrides the modern
+        // LWJGL 3.4.2/3.4.3 stack used by Minecraft 26.x and causes platform/native
+        // mismatches. Modern versions must use the libraries declared by their manifest.
+        boolean modernLwjgl = iLwjglVersion >= 342;
         File lwjgl3Folder = new File(Tools.DIR_GAME_HOME, "lwjgl3/"+internalLwjglVersion);
         String lwjglCore = lwjgl3Folder.getAbsolutePath() + "/lwjgl.jar";
         String lwjglMerged = lwjgl3Folder.getAbsolutePath() + "/lwjgl-"+internalLwjglVersion+"-merged-modules.jar";
         String lwjglxFile = lwjgl3Folder + "/lwjgl-lwjglx.jar";
 
-        if (!new File(lwjglCore).exists() || !new File(lwjglMerged).exists() || !new File(lwjglxFile).exists()) {
-            try { // Delete the folder so on restart will re-extract them.
-                if (lwjgl3Folder.exists())
-                    org.apache.commons.io.FileUtils.deleteDirectory(lwjgl3Folder);
-            } catch (IOException ignored) {}
-            throw new RuntimeException("LWJGL jars incomplete, restart the app to reextract them.");
+        if (!modernLwjgl) {
+            if (!new File(lwjglCore).exists() || !new File(lwjglMerged).exists() || !new File(lwjglxFile).exists()) {
+                try {
+                    if (lwjgl3Folder.exists())
+                        org.apache.commons.io.FileUtils.deleteDirectory(lwjgl3Folder);
+                } catch (IOException ignored) {}
+                throw new RuntimeException("LWJGL jars incomplete, restart the app to reextract them.");
+            }
+            launchClasspath.append(lwjglCore).append(":");
+            launchClasspath.append(lwjglMerged).append(":");
+
+            File[] lwjglModules = lwjgl3Folder.listFiles(pathname ->
+                    pathname.getName().endsWith(".jar") &&
+                    !pathname.getName().equals("lwjgl.jar") &&
+                    !pathname.getName().endsWith("lwjglx.jar") &&
+                    !pathname.getName().endsWith("merged-modules.jar"));
+
+            if (lwjglModules != null) {
+                for (File lwjglModule : lwjglModules)
+                    launchClasspath.append(lwjglModule.getAbsolutePath()).append(":");
+            } else {
+                Log.e("generateLaunchClasspath", "lwjgl modules are missing from components!");
+            }
         }
-        launchClasspath.append(lwjglCore).append(":");
-        // 2nd in priority in case we need to merge lwjgl.jar again for testing
-        launchClasspath.append(lwjglMerged).append(":");
-
-        File[] lwjglModules = lwjgl3Folder.listFiles(pathname ->
-                pathname.getName().endsWith(".jar") &&
-            // Exclude jars that are added explicitly before/after the module list
-                !pathname.getName().equals("lwjgl.jar") &&
-                !pathname.getName().endsWith("lwjglx.jar") &&
-                !pathname.getName().endsWith("merged-modules.jar"));
-
-        if (lwjglModules != null) {
-            for (File lwjglModule : lwjglModules)
-                launchClasspath.append(lwjglModule.getAbsolutePath()).append(":");
-        } else Log.e("generateLaunchClasspath", "lwjgl modules are missing from components!");
 
         launchClasspath.append(libClasspath).append(":");
         launchClasspath.append(getClientClasspath(actualname));
-        // Anything LWJGL2 gets LWJGLX
         if (iLwjglVersion <= 299) launchClasspath.append(":").append(lwjglxFile);
         return launchClasspath.toString();
     }
