@@ -532,8 +532,6 @@ public class JREUtils {
         userArgs.add("-Dorg.lwjgl.spvc.libname=spirv-cross-c-shared");
 
         // We don't have jemalloc for our LWJGL so set the allocator to system to avoid error logs
-        userArgs.add("-Dorg.lwjgl.system.allocator=system");
-
         // Minecraft 26.x uses LWJGL 3.4.x with the SDL3 backend. Always point LWJGL
         // at the SDL3 library shipped by the launcher instead of letting it search the
         // game/native JARs for a desktop Linux SDL build.
