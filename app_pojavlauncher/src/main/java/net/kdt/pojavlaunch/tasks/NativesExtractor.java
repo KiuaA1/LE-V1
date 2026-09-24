@@ -56,6 +56,35 @@ public class NativesExtractor {
         throw new RuntimeException("Unknown CPU architecture: "+architecture);
     }
 
+    /**
+     * Extract native binaries from a modern Minecraft/LWJGL native classifier JAR.
+     * Modern manifests use downloads.classifiers + natives instead of the old
+     * Android AAR layout. Only platform-native binaries are copied; META-INF and
+     * Java resources stay out of the native directory.
+     */
+    public void extractFromJar(File source) throws IOException {
+        byte[] buffer = new byte[8192];
+        try (FileInputStream fileInputStream = new FileInputStream(source);
+             ZipInputStream zipInputStream = new ZipInputStream(fileInputStream)) {
+            NonCloseableInputStream entryCopyStream = new NonCloseableInputStream(zipInputStream);
+            ZipEntry entry;
+            while ((entry = zipInputStream.getNextEntry()) != null) {
+                if (entry.isDirectory()) continue;
+                String entryName = entry.getName();
+                if (entryName == null || entryName.startsWith("META-INF/")) continue;
+                String fileName = FileUtils.getFileName(entryName);
+                if (fileName == null || !isNativeBinary(fileName)) continue;
+                if (LIBRARY_BLACKLIST.contains(fileName)) continue;
+                processEntry(entryCopyStream, entry, new File(mDestinationDir, fileName), buffer);
+            }
+        }
+    }
+
+    private static boolean isNativeBinary(String name) {
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        return lower.endsWith(".so") || lower.endsWith(".dylib") || lower.endsWith(".dll");
+    }
+
     public void extractFromAar(File source) throws IOException {
         byte[] buffer = new byte[8192];
         try (FileInputStream fileInputStream = new FileInputStream(source);
