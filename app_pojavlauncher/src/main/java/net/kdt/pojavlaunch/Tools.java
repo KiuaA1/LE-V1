@@ -1314,21 +1314,12 @@ public final class Tools {
      */
     private static void normalizeModernLwjglLibrary(DependentLibrary library) {
         if (library == null || library.name == null || !library.name.startsWith("org.lwjgl:")) return;
-        if (library.downloads == null || library.downloads.classifiers == null
-                || library.downloads.classifiers.isEmpty()) return;
+        if (library.downloads == null) return;
 
         String[] parts = library.name.split(":");
         if (parts.length < 3) return;
         String version = parts[2];
         if (!("3.4.2".equals(version) || "3.4.3".equals(version))) return;
-
-        if (library.natives == null) {
-            library.natives = new java.util.LinkedHashMap<>();
-        }
-        library.natives.put("android-arm", "natives-linux-arm32");
-        library.natives.put("android-arm64", "natives-linux-arm64");
-        library.natives.put("android-x86", "natives-linux-x86");
-        library.natives.put("android-x86_64", "natives-linux");
 
         final String releaseBase =
                 "https://github.com/MojoLauncher/unilwjgl3-builder/releases/download/v"
@@ -1337,8 +1328,17 @@ public final class Tools {
         if (library.downloads.artifact != null) {
             rewriteModernLwjglArtifact(library.downloads.artifact, releaseBase);
         }
-        for (MinecraftLibraryArtifact artifact : library.downloads.classifiers.values()) {
-            rewriteModernLwjglArtifact(artifact, releaseBase);
+        if (library.downloads.classifiers != null && !library.downloads.classifiers.isEmpty()) {
+            if (library.natives == null) {
+                library.natives = new java.util.LinkedHashMap<>();
+            }
+            library.natives.put("android-arm", "natives-linux-arm32");
+            library.natives.put("android-arm64", "natives-linux-arm64");
+            library.natives.put("android-x86", "natives-linux-x86");
+            library.natives.put("android-x86_64", "natives-linux");
+            for (MinecraftLibraryArtifact artifact : library.downloads.classifiers.values()) {
+                rewriteModernLwjglArtifact(artifact, releaseBase);
+            }
         }
     }
 
