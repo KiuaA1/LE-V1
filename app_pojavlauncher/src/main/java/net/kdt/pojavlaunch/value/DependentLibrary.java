@@ -13,6 +13,11 @@ public class DependentLibrary {
     public String url;
 
     @Keep
+    public static class Extract {
+        public String[] exclude;
+    }
+
+    @Keep
 	public static class LibraryDownloads {
 		public MinecraftLibraryArtifact artifact;
         public java.util.Map<String, MinecraftLibraryArtifact> classifiers;
