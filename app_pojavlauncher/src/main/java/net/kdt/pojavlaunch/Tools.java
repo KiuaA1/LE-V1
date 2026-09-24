@@ -505,6 +505,13 @@ public final class Tools {
         }
         javaArgList.add("-Djava.library.path="+javaLibraryPath);
 
+        // Give modern LWJGL a stable per-version extraction directory. Minecraft
+        // 26.x can unpack bundled/native dependencies there instead of relying on
+        // a writable system tmp directory.
+        File lwjglExtractDir = new File(Tools.DIR_CACHE, "lwjgl_native/" + versionId);
+        FileUtils.ensureDirectory(lwjglExtractDir);
+        javaArgList.add("-Dorg.lwjgl.system.SharedLibraryExtractPath=" + lwjglExtractDir.getAbsolutePath());
+
         javaArgList.addAll(Arrays.asList(getMinecraftJVMArgs(versionId, gamedir)));
         javaArgList.add("-cp"); javaArgList.add(launchClasspath);
 
