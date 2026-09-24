@@ -17,6 +17,7 @@ import androidx.annotation.Nullable;
 import com.google.gson.JsonSyntaxException;
 import com.kdt.mcgui.ProgressLayout;
 
+import net.kdt.pojavlaunch.Architecture;
 import net.kdt.pojavlaunch.JAssetInfo;
 import net.kdt.pojavlaunch.JAssets;
 import net.kdt.pojavlaunch.JMinecraftVersionList;
