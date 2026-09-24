@@ -631,8 +631,8 @@ public class MinecraftDownloader {
 
     private static String getAndroidNativeClassifier(DependentLibrary library) {
         if (library == null || library.natives == null) return null;
-        String classifier = library.natives.get("linux");
-        if (classifier == null) classifier = library.natives.get("android");
+        String classifier = library.natives.get("android-" + Architecture.archAsString(Architecture.getDeviceArchitecture()));
+        if (classifier == null) classifier = library.natives.get("linux");
         return classifier;
     }
 
