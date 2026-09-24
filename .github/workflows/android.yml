@@ -38,6 +38,26 @@ jobs:
             "ndk;29.0.14206865" \
             "cmake;3.22.1"
 
+      - name: Prepare Google Services for debug build
+        run: |
+          python3 - <<'PY'
+          import json
+          path = "app_pojavlauncher/google-services.json"
+          with open(path, "r", encoding="utf-8") as f:
+              data = json.load(f)
+          for client in data.get("client", []):
+              package = client.get("client_info", {}).get("android_client_info", {}).get("package_name")
+              if package == "com.cslaucher.plus.debug":
+                  break
+          else:
+              if data.get("client"):
+                  debug_client = json.loads(json.dumps(data["client"][0]))
+                  debug_client.setdefault("client_info", {}).setdefault("android_client_info", {})["package_name"] = "com.cslaucher.plus.debug"
+                  data["client"].append(debug_client)
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(data, f, indent=2)
+          PY
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
