@@ -85,6 +85,14 @@ public class NativesExtractor {
         return lower.endsWith(".so") || lower.endsWith(".dylib") || lower.endsWith(".dll");
     }
 
+    public void extract(File source) throws IOException {
+        if (source.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".aar")) {
+            extractFromAar(source);
+        } else {
+            extractFromJar(source);
+        }
+    }
+
     public void extractFromAar(File source) throws IOException {
         byte[] buffer = new byte[8192];
         try (FileInputStream fileInputStream = new FileInputStream(source);
