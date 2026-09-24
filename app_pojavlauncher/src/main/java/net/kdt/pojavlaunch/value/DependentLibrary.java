@@ -14,7 +14,8 @@ public class DependentLibrary {
 
     @Keep
 	public static class LibraryDownloads {
-		public final MinecraftLibraryArtifact artifact;
+		public MinecraftLibraryArtifact artifact;
+        public java.util.Map<String, MinecraftLibraryArtifact> classifiers;
 		public LibraryDownloads(MinecraftLibraryArtifact artifact) {
 			this.artifact = artifact;
 		}
