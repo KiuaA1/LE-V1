@@ -87,7 +87,7 @@ jobs:
         run: |
           ./gradlew :app_pojavlauncher:assembleRelease --stacktrace --no-daemon
         env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/29.0.14206865
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY || 'DUMMY' }}
 
       - name: Find and list APK
