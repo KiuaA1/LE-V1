@@ -294,7 +294,7 @@ public class MinecraftDownloader {
         org.apache.commons.io.FileUtils.deleteDirectory(tempDirectory);FileUtils.ensureDirectory(tempDirectory);
         try{
             NativesExtractor extractor=new NativesExtractor(tempDirectory);int count=0;
-            for(File source:mDeclaredNatives){extractor.extractFromAar(source);count++;ProgressLayout.setProgress(ProgressLayout.DOWNLOAD_MINECRAFT,count*100/totalCount,R.string.newdl_extracting_native_libraries,count,totalCount);}
+            for(File source:mDeclaredNatives){extractor.extract(source);count++;ProgressLayout.setProgress(ProgressLayout.DOWNLOAD_MINECRAFT,count*100/totalCount,R.string.newdl_extracting_native_libraries,count,totalCount);}
             writeNativeManifest(tempDirectory,versionName);
             org.apache.commons.io.FileUtils.deleteDirectory(backupDirectory);
             if(targetDirectory.exists()&&!targetDirectory.renameTo(backupDirectory))throw new IOException("Could not stage old native cache");
@@ -614,12 +614,71 @@ public class MinecraftDownloader {
         scheduleDownload(targetPath, DownloadMirror.DOWNLOAD_CLASS_LIBRARIES, downloadUrl, null, 0, true);
     }
 
+    private static boolean isLegacyLwjgl(DependentLibrary library) {
+        if (library == null || library.name == null || !library.name.startsWith("org.lwjgl")) return false;
+        String[] parts = library.name.split(":");
+        if (parts.length < 3) return false;
+        try {
+            String[] v = parts[2].split("\\.");
+            int major = Integer.parseInt(v[0]);
+            int minor = v.length > 1 ? Integer.parseInt(v[1]) : 0;
+            int patch = v.length > 2 ? Integer.parseInt(v[2]) : 0;
+            return major < 3 || (major == 3 && (minor < 4 || (minor == 4 && patch < 2)));
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static String getAndroidNativeClassifier(DependentLibrary library) {
+        if (library == null || library.natives == null) return null;
+        String classifier = library.natives.get("linux");
+        if (classifier == null) classifier = library.natives.get("android");
+        return classifier;
+    }
+
+    private void scheduleModernNativeClassifier(DependentLibrary library) throws IOException {
+        String classifier = getAndroidNativeClassifier(library);
+        if (classifier == null || library.downloads == null || library.downloads.classifiers == null) return;
+
+        MinecraftLibraryArtifact nativeArtifact = library.downloads.classifiers.get(classifier);
+        if (nativeArtifact == null || nativeArtifact.url == null) {
+            Log.w("MinecraftDownloader", "Native classifier " + classifier
+                    + " is declared for " + library.name + " but has no downloadable artifact");
+            return;
+        }
+
+        String path = nativeArtifact.path;
+        if (path == null || path.length() == 0) {
+            path = Tools.artifactToPath(library);
+            int dot = path.lastIndexOf('.');
+            path = dot >= 0
+                    ? path.substring(0, dot) + "-" + classifier + path.substring(dot)
+                    : path + "-" + classifier + ".jar";
+        }
+
+        File targetPath = new File(Tools.DIR_HOME_LIBRARY, path);
+        if (!mDeclaredNatives.contains(targetPath)) {
+            mDeclaredNatives.add(targetPath);
+        }
+        scheduleDownload(targetPath, DownloadMirror.DOWNLOAD_CLASS_LIBRARIES,
+                nativeArtifact.url, nativeArtifact.sha1, nativeArtifact.size, false);
+    }
+
     private void scheduleLibraryDownloads(DependentLibrary[] dependentLibraries) throws IOException {
         Tools.preProcessLibraries(dependentLibraries);
         growDownloadList(dependentLibraries.length);
         for(DependentLibrary dependentLibrary : dependentLibraries) {
-            // Don't download lwjgl, we have our own bundled in.
-            if(dependentLibrary.name.startsWith("org.lwjgl")) continue;
+            // Modern Minecraft (26.x+) declares LWJGL Java artifacts and native
+            // classifiers directly in the manifest. Older versions still use LE's
+            // bundled LWJGL bridge, so keep skipping the old LWJGL stack there.
+            if (isLegacyLwjgl(dependentLibrary)) continue;
+
+            // Modern manifests use natives + downloads.classifiers. Download the
+            // selected platform classifier into the normal Maven library tree and
+            // add it to the native extraction set; it must NOT enter the Java
+            // classpath as a regular artifact.
+            scheduleModernNativeClassifier(dependentLibrary);
+
             // Special handling for JNA Android natives
             if(dependentLibrary.name.startsWith("net.java.dev.jna:jna:")) {
                 scheduleNativeLibraryDownload(MAVEN_CENTRAL_REPO1, dependentLibrary);
