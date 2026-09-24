@@ -1257,6 +1257,7 @@ public final class Tools {
     public static void preProcessLibraries(DependentLibrary[] libraries) {
         for (int i = 0; i < libraries.length; i++) {
             DependentLibrary libItem = libraries[i];
+            normalizeModernLwjglLibrary(libItem);
             String[] version = libItem.name.split(":")[2].split("\\.");
             if (libItem.name.startsWith("net.java.dev.jna:jna:")) {
                 // Special handling for LabyMod 1.8.9, Forge 1.12.2(?) and oshi
@@ -1293,6 +1294,68 @@ public final class Tools {
                 libItem.downloads.artifact.url = "https://repo1.maven.org/maven2/org/ow2/asm/asm-all/5.0.4/asm-all-5.0.4.jar";
             }
         }
+    }
+
+    /**
+     * Minecraft's official LWJGL manifests target desktop Linux natives. Android
+     * needs the patched per-ABI artifacts produced by Mojo's unilwjgl3-builder.
+     * Rewrite modern LWJGL 3.4.2/3.4.3 metadata in-place so the existing downloader
+     * can select an Android ABI classifier and extract ARM/x86-compatible .so files.
+     *
+     * This intentionally only changes org.lwjgl 3.4.2/3.4.3 libraries that actually
+     * expose classifiers; unrelated Minecraft libraries continue using Mojang URLs.
+     */
+    private static void normalizeModernLwjglLibrary(DependentLibrary library) {
+        if (library == null || library.name == null || !library.name.startsWith("org.lwjgl:")) return;
+        if (library.downloads == null || library.downloads.classifiers == null
+                || library.downloads.classifiers.isEmpty()) return;
+
+        String[] parts = library.name.split(":");
+        if (parts.length < 3) return;
+        String version = parts[2];
+        if (!("3.4.2".equals(version) || "3.4.3".equals(version))) return;
+
+        if (library.natives == null) {
+            library.natives = new java.util.LinkedHashMap<>();
+        }
+        library.natives.put("android-arm", "natives-linux-arm32");
+        library.natives.put("android-arm64", "natives-linux-arm64");
+        library.natives.put("android-x86", "natives-linux-x86");
+        library.natives.put("android-x86_64", "natives-linux");
+
+        final String releaseBase =
+                "https://github.com/MojoLauncher/unilwjgl3-builder/releases/download/v"
+                        + version + "-r6/";
+
+        if (library.downloads.artifact != null) {
+            rewriteModernLwjglArtifact(library.downloads.artifact, releaseBase);
+        }
+        for (MinecraftLibraryArtifact artifact : library.downloads.classifiers.values()) {
+            rewriteModernLwjglArtifact(artifact, releaseBase);
+        }
+    }
+
+    private static void rewriteModernLwjglArtifact(
+            MinecraftLibraryArtifact artifact, String releaseBase) {
+        if (artifact == null) return;
+        String path = artifact.path;
+        String fileName = null;
+        if (path != null) {
+            int slash = path.lastIndexOf('/');
+            fileName = slash >= 0 ? path.substring(slash + 1) : path;
+        }
+        if (fileName == null || fileName.isEmpty()) {
+            if (artifact.url == null) return;
+            int slash = artifact.url.lastIndexOf('/');
+            fileName = slash >= 0 ? artifact.url.substring(slash + 1) : artifact.url;
+        }
+
+        artifact.url = releaseBase + fileName;
+        // The Mojo builder artifacts are intentionally patched/rebuilt, so Mojang's
+        // manifest SHA-1/size describe a different binary. Do not reject the Android
+        // replacement against the desktop checksum.
+        artifact.sha1 = null;
+        artifact.size = 0;
     }
 
     private static void createLibraryInfo(DependentLibrary library) {
